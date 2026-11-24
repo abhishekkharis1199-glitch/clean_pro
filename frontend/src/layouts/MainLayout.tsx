@@ -1,15 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { clearSession, getStoredUser } from '../services/authApi'
 
 export default function MainLayout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isLocationSearchOpen, setIsLocationSearchOpen] = useState(false)
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [searchParams] = useSearchParams()
   const [location, setLocation] = useState(() => searchParams.get('location') || 'Bengaluru')
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const isProviderSignup = pathname === '/provider/signup'
   const isLandingPage = pathname === '/'
+  const user = getStoredUser()
 
   function handleLocationSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -18,6 +21,12 @@ export default function MainLayout() {
     setLocation(query)
     setIsLocationSearchOpen(false)
     navigate(`/customer?location=${encodeURIComponent(query)}`)
+  }
+
+  function handleSignOut() {
+    clearSession()
+    setIsAccountMenuOpen(false)
+    navigate('/')
   }
 
   return (
@@ -126,8 +135,35 @@ export default function MainLayout() {
             </form>
           )}
           <div className="landing-auth-links">
-            <Link className="landing-sign-in" to="/login">Log In</Link>
-            <Link className="get-started-btn" to="/register">Sign Up</Link>
+            {user ? (
+              <div className="user-dropdown">
+                <button className="user-dropdown-toggle" type="button" aria-haspopup="true" aria-expanded={isAccountMenuOpen} onClick={() => setIsAccountMenuOpen((open) => !open)}>
+                  Welcome, {user.firstName}
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+                  </svg>
+                </button>
+                {isAccountMenuOpen && (
+                  <div className="user-dropdown-menu" role="menu">
+                    <Link to="/customer" className="user-dropdown-item" role="menuitem">Account details</Link>
+                    <Link to="/customer" className="user-dropdown-item" role="menuitem">My bookings</Link>
+                    <button
+                      className="user-dropdown-item"
+                      type="button"
+                      role="menuitem"
+                      onClick={handleSignOut}
+                    >
+                      Log Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <Link className="landing-sign-in" to="/login">Log In</Link>
+                <Link className="get-started-btn" to="/register">Sign Up</Link>
+              </>
+            )}
           </div>
         </div>
       </header>

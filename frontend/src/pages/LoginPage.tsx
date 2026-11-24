@@ -1,13 +1,69 @@
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { login, loginOtp, saveSession, sendLoginOtp } from '../services/authApi'
 
 export default function LoginPage() {
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [formMessage, setFormMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [loginMethod, setLoginMethod] = useState<'password' | 'emailOtp' | 'phoneOtp'>('password')
+  const [otpDestination, setOtpDestination] = useState('')
+  const [otpCode, setOtpCode] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setFormMessage('Sign-in is a demo flow and is not connected to an account service yet.')
+    setFormMessage('')
+
+    const form = new FormData(event.currentTarget)
+
+    try {
+      setIsLoading(true)
+      let response
+
+      if (loginMethod === 'password') {
+        response = await login({
+          email: String(form.get('username') || ''),
+          password: String(form.get('password') || ''),
+        })
+      } else {
+        response = await loginOtp({
+          destination: otpDestination,
+          channel: loginMethod === 'emailOtp' ? 'email' : 'phone',
+          code: otpCode,
+        })
+      }
+
+      saveSession(response)
+
+      if (response.user.role === 'admin') navigate('/admin')
+      else if (response.user.role === 'provider') navigate('/provider')
+      else navigate('/')
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : 'Sign-in failed')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleSendOtp() {
+    setFormMessage('')
+
+    try {
+      setIsLoading(true)
+      const result = await sendLoginOtp({
+        destination: otpDestination,
+        channel: loginMethod === 'emailOtp' ? 'email' : 'phone',
+      })
+
+      setOtpSent(true)
+      setFormMessage(result.demoCode ? `OTP sent. Demo code: ${result.demoCode}` : 'OTP sent successfully.')
+    } catch (error) {
+      setFormMessage(error instanceof Error ? error.message : 'Failed to send OTP')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -42,53 +98,53 @@ export default function LoginPage() {
 
           <form className="customer-signup-form customer-login-form" onSubmit={handleSubmit}>
             {formMessage && <p className="customer-login-message" role="status">{formMessage}</p>}
-            <label>
-              Email or username
-              <input
-                type="text"
-                name="username"
-                placeholder="you@example.com"
-                autoComplete="username"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <span className="customer-signup-password">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                />
-                <button
-                  type="button"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  aria-pressed={showPassword}
-                  onClick={() => setShowPassword((show) => !show)}
-                >
-                  {showPassword ? (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.2A10.7 10.7 0 0 1 12 5c5.4 0 9 5 9 7a8.6 8.6 0 0 1-2.2 3.2M6.2 6.2C3.9 7.6 3 10.2 3 12c0 2 3.6 7 9 7a9.7 9.7 0 0 0 3.1-.5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M3 12s3.2-7 9-7 9 7 9 7-3.2 7-9 7-9-7-9-7Z" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                      <circle cx="12" cy="12" r="2.5" fill="none" stroke="currentColor" strokeWidth="1.7" />
-                    </svg>
-                  )}
+
+            <div className="login-method-tabs" role="tablist" aria-label="Sign-in method">
+              <button type="button" className={loginMethod === 'password' ? 'is-active' : ''} onClick={() => { setLoginMethod('password'); setOtpSent(false); setFormMessage('') }}>Email & password</button>
+              <button type="button" className={loginMethod === 'emailOtp' ? 'is-active' : ''} onClick={() => { setLoginMethod('emailOtp'); setOtpSent(false); setFormMessage('') }}>Email OTP</button>
+              <button type="button" className={loginMethod === 'phoneOtp' ? 'is-active' : ''} onClick={() => { setLoginMethod('phoneOtp'); setOtpSent(false); setFormMessage('') }}>Mobile OTP</button>
+            </div>
+
+            {loginMethod === 'password' ? (
+              <>
+                <label>Email address
+                  <input type="email" name="username" placeholder="you@example.com" autoComplete="username" required />
+                </label>
+                <label>Password
+                  <span className="customer-signup-password">
+                    <input type={showPassword ? 'text' : 'password'} name="password" placeholder="Enter your password" autoComplete="current-password" required />
+                    <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((open) => !open)}>◎</button>
+                  </span>
+                </label>
+              </>
+            ) : (
+              <>
+                <label>{loginMethod === 'emailOtp' ? 'Email address' : 'Mobile number'}
+                  <input
+                    type={loginMethod === 'emailOtp' ? 'email' : 'tel'}
+                    value={otpDestination}
+                    onChange={(event) => { setOtpDestination(event.target.value); setOtpSent(false) }}
+                    placeholder={loginMethod === 'emailOtp' ? 'you@example.com' : '+91 98765 43210'}
+                    required
+                  />
+                </label>
+                <button type="button" className="otp-send-btn" onClick={handleSendOtp} disabled={isLoading || !otpDestination}>
+                  {otpSent ? 'Resend OTP' : 'Send OTP'}
                 </button>
-              </span>
-            </label>
-            <button
-              className="customer-login-forgot"
-              type="button"
-              onClick={() => setFormMessage('Password reset is not available in this demo yet.')}
-            >
-              Forgot password?
+                {otpSent && (
+                  <label>6-digit OTP
+                    <input inputMode="numeric" maxLength={6} value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, ''))} placeholder="Enter 123456" required />
+                  </label>
+                )}
+              </>
+            )}
+
+            {loginMethod === 'password' && (
+              <button className="customer-login-forgot" type="button" onClick={() => navigate('/forgot-password')}>Forgot password?</button>
+            )}
+            <button className="customer-signup-submit" type="submit" disabled={isLoading || (loginMethod !== 'password' && (!otpSent || otpCode.length !== 6))}>
+              {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
-            <button className="customer-signup-submit" type="submit">Sign in</button>
           </form>
 
           <div className="customer-signup-divider"><span>Or sign in with</span></div>

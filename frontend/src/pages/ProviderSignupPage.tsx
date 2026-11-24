@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent, type DragEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { saveSession, signup } from '../services/authApi'
 
 const steps = ['Your details', 'Business', 'Verification']
 const demoOtp = '123456'
@@ -44,6 +45,7 @@ export default function ProviderSignupPage() {
   const [isKycDragging, setIsKycDragging] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [error, setError] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
   const isCustomCategory = category === 'other'
 
   const sendOtp = () => {
@@ -70,7 +72,7 @@ export default function ProviderSignupPage() {
   const continueStep = () => {
     setError('')
     if (step === 0) {
-      if (!fullName.trim() || !mobile.trim() || !email.trim() || !password) {
+      if (!fullName.trim() || !mobile.trim() || !email.trim() || !password || !dateOfBirth) {
         setError('Complete all fields to continue.')
         return
       }
@@ -145,14 +147,40 @@ export default function ProviderSignupPage() {
     setError('')
   }
 
-  const submitApplication = () => {
+  const submitApplication = async () => {
     if (!kycDocument) {
       setError('Upload a KYC document to submit your application.')
       return
     }
 
-    setError('')
-    setIsSubmitted(true)
+    const nameParts = fullName.trim().split(/\s+/)
+    const firstName = nameParts.shift() || ''
+    const lastName = nameParts.join(' ') || firstName
+
+    try {
+      setError('')
+      const response = await signup({
+        firstName,
+        lastName,
+        dateOfBirth,
+        email,
+        password,
+        confirmPassword: password,
+        role: 'provider',
+        phone: mobile,
+        provider: {
+          businessName,
+          serviceCategory: category,
+          customServiceCategory: isCustomCategory ? customCategory : undefined,
+          teamSize: Number(teamSize),
+        },
+      })
+
+      saveSession(response)
+      setIsSubmitted(true)
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Provider application could not be submitted.')
+    }
   }
 
   return (
@@ -242,6 +270,16 @@ export default function ProviderSignupPage() {
                 <label>
                   Password
                   <input autoComplete="new-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" />
+                </label>
+                <label>
+                  Date of birth
+                  <input
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(event) => setDateOfBirth(event.target.value)}
+                    max={new Date().toISOString().split('T')[0]}
+                    placeholder="YYYY-MM-DD"
+                  />
                 </label>
               </div>
               {error && <p className="form-error" key={error} role="alert">{error}</p>}
