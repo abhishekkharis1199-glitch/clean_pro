@@ -8,6 +8,8 @@ import ProviderDashboardPage from '../pages/ProviderDashboardPage'
 import AdminDashboardPage from '../pages/AdminDashboardPage'
 import ProviderSignupPage from '../pages/ProviderSignupPage'
 import ServiceProvidersPage from '../pages/ServiceProvidersPage'
+import ForgotPasswordPage from '../pages/ForgotPasswordPage'
+import ResetPasswordPage from '../pages/ResetPasswordPage'
 
 export default function AppRoutes() {
   return (
@@ -22,6 +24,8 @@ export default function AppRoutes() {
         <Route path="/customer" element={<CustomerDashboardPage />} />
         <Route path="/provider" element={<ProviderDashboardPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
     </Routes>
   )
